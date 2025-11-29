@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Member from "@/models/Member";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(
     request: Request,
@@ -51,12 +53,24 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const allowedRoles = ["Super Admin", "Member Manager"];
+        if (!allowedRoles.includes(session.user.role)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
         await dbConnect();
         const { id } = await params;
         const member = await Member.findByIdAndDelete(id);
+
         if (!member) {
             return NextResponse.json({ error: "Member not found" }, { status: 404 });
         }
+
         return NextResponse.json({ message: "Member deleted successfully" });
     } catch (error) {
         return NextResponse.json(

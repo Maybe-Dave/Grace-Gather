@@ -13,7 +13,7 @@ export default function DashboardLayout({
             </div>
             <main className="md:pl-72 h-full">
                 <div className="flex items-center justify-between p-8 pb-0">
-                    <div className="relative w-96">
+                    {/* <div className="relative w-96">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 24 24"
@@ -32,7 +32,8 @@ export default function DashboardLayout({
                             placeholder="Search..."
                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-8 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         />
-                    </div>
+                    </div> */}
+                    <div></div>
                     <div className="flex items-center gap-4">
                         <ModeToggle />
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">

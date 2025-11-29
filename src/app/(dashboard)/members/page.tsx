@@ -1,35 +1,51 @@
-"use client"
-
 import Link from "next/link";
-import { Plus, Search, Upload } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Plus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import dbConnect from "@/lib/db";
+import Member from "@/models/Member";
+import { Search } from "@/components/search";
+import { SortHeader } from "@/components/sort-header";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { MemberActions } from "@/components/member-actions";
 
-interface Member {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    status: string;
-    phoneNumbers: string[];
-}
+export default async function MembersPage(props: {
+    searchParams: Promise<{
+        query?: string;
+        page?: string;
+        sort?: string;
+        order?: string;
+    }>;
+}) {
+    const searchParams = await props.searchParams;
+    const query = searchParams?.query || "";
+    const sort = searchParams?.sort || "firstName"; // Default sort by Name
+    const order = searchParams?.order === "desc" ? -1 : 1; // Default Ascending
+    const page = Number(searchParams?.page) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
 
-export default function MembersPage() {
-    const [members, setMembers] = useState<Member[]>([]);
-    const [loading, setLoading] = useState(true);
+    const session = await getServerSession(authOptions);
+    const userRole = session?.user?.role || "Viewer";
+    const canManage = ["Super Admin", "Member Manager"].includes(userRole);
 
-    useEffect(() => {
-        async function fetchMembers() {
-            try {
-                const res = await fetch("/api/members");
-                const data = await res.json();
-                setMembers(data);
-            } catch (error) {
-                console.error("Failed to fetch members", error);
-            } finally {
-                setLoading(false);
-            }
+    await dbConnect();
+
+    const filter = query
+        ? {
+            $or: [
+                { firstName: { $regex: query, $options: "i" } },
+                { lastName: { $regex: query, $options: "i" } },
+            ],
         }
-        fetchMembers();
-    }, []);
+        : {};
+
+    const members = await Member.find(filter)
+        .sort({ [sort]: order })
+        .skip(skip)
+        .limit(limit);
+
+    const totalMembers = await Member.countDocuments(filter);
+    const totalPages = Math.ceil(totalMembers / limit);
 
     return (
         <div className="space-y-8">
@@ -41,59 +57,50 @@ export default function MembersPage() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Link
-                        href="/members/import"
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-                    >
-                        <Upload className="mr-2 h-4 w-4" /> Import
-                    </Link>
-                    <Link
-                        href="/members/new"
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-                    >
-                        <Plus className="mr-2 h-4 w-4" /> Add Member
-                    </Link>
+                    {canManage && (
+                        <>
+                            <Link
+                                href="/members/import"
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                            >
+                                <Upload className="mr-2 h-4 w-4" /> Import
+                            </Link>
+                            <Link
+                                href="/members/new"
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Add Member
+                            </Link>
+                        </>
+                    )}
                 </div>
             </div>
 
             <div className="flex items-center space-x-2">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <input
-                        type="search"
-                        placeholder="Search members..."
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-8 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                </div>
+                <Search placeholder="Search members..." />
             </div>
 
             <div className="rounded-md bg-card shadow-md">
                 <div className="relative w-full overflow-auto">
                     <table className="w-full caption-bottom text-sm">
-                        <thead className="[&_tr]:border-b">
-                            <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                                    Name
+                        <thead>
+                            <tr className="bg-muted/50 hover:bg-muted/50 transition-colors">
+                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground rounded-tl-md">
+                                    <SortHeader label="Name" value="firstName" />
                                 </th>
                                 <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                                    Status
+                                    <SortHeader label="Status" value="status" />
                                 </th>
                                 <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                                     Phone
                                 </th>
-                                <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">
+                                <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground rounded-tr-md">
                                     Actions
                                 </th>
                             </tr>
                         </thead>
                         <tbody className="[&_tr:last-child]:border-0">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan={4} className="p-4 text-center">
-                                        Loading...
-                                    </td>
-                                </tr>
-                            ) : members.length === 0 ? (
+                            {members.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="p-4 text-center text-muted-foreground">
                                         No members found.
@@ -102,8 +109,8 @@ export default function MembersPage() {
                             ) : (
                                 members.map((member) => (
                                     <tr
-                                        key={member._id}
-                                        className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                                        key={member._id.toString()}
+                                        className="transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
                                     >
                                         <td className="p-4 align-middle font-medium">
                                             {member.firstName} {member.lastName}
@@ -114,7 +121,7 @@ export default function MembersPage() {
                                                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                                                     : member.status === "Visitor"
                                                         ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-                                                        : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
+                                                        : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
                                                     }`}
                                             >
                                                 {member.status}
@@ -124,24 +131,45 @@ export default function MembersPage() {
                                             {member.phoneNumbers[0]}
                                         </td>
                                         <td className="p-4 align-middle text-right">
-                                            <Link
-                                                href={`/members/${member._id}`}
-                                                className="text-primary hover:underline mr-4"
-                                            >
-                                                View
-                                            </Link>
-                                            <Link
-                                                href={`/members/${member._id}/edit`}
-                                                className="text-muted-foreground hover:text-foreground"
-                                            >
-                                                Edit
-                                            </Link>
+                                            <MemberActions
+                                                memberId={member._id.toString()}
+                                                memberName={`${member.firstName} ${member.lastName}`}
+                                                role={userRole}
+                                            />
                                         </td>
                                     </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                    Showing {skip + 1} to {Math.min(skip + limit, totalMembers)} of {totalMembers} members
+                </p>
+                <div className="flex items-center space-x-2">
+                    <Link
+                        href={{
+                            query: { ...searchParams, page: page > 1 ? page - 1 : 1 },
+                        }}
+                        className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Link>
+                    <div className="text-sm font-medium">
+                        Page {page} of {totalPages}
+                    </div>
+                    <Link
+                        href={{
+                            query: { ...searchParams, page: page < totalPages ? page + 1 : totalPages },
+                        }}
+                        className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9 ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Link>
                 </div>
             </div>
         </div>

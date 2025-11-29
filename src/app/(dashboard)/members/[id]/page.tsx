@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 interface Member {
     _id: string;
@@ -23,9 +25,13 @@ interface Member {
 export default function MemberDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
+    const { data: session } = useSession();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [member, setMember] = useState<Member | null>(null);
+
+    const userRole = session?.user?.role || "Viewer";
+    const isReadOnly = userRole === "Viewer";
 
     useEffect(() => {
         async function fetchMember() {
@@ -35,11 +41,12 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                     const data = await res.json();
                     setMember(data);
                 } else {
-                    alert("Member not found");
+                    toast.error("Member not found");
                     router.push("/members");
                 }
             } catch (error) {
                 console.error("Failed to fetch member", error);
+                toast.error("Failed to fetch member details");
             } finally {
                 setLoading(false);
             }
@@ -48,13 +55,13 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
     }, [id, router]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        if (!member) return;
+        if (!member || isReadOnly) return;
         const { name, value } = e.target;
         setMember((prev) => (prev ? { ...prev, [name]: value } : null));
     };
 
     const handlePhoneChange = (index: number, value: string) => {
-        if (!member) return;
+        if (!member || isReadOnly) return;
         const newPhones = [...member.phoneNumbers];
         newPhones[index] = value;
         setMember((prev) => (prev ? { ...prev, phoneNumbers: newPhones } : null));
@@ -62,7 +69,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!member) return;
+        if (!member || isReadOnly) return;
         setSaving(true);
 
         try {
@@ -73,14 +80,15 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
             });
 
             if (res.ok) {
-                alert("Member updated successfully");
+                toast.success("Member updated successfully");
                 router.refresh();
+                router.push("/members");
             } else {
-                alert("Failed to update member");
+                toast.error("Failed to update member");
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred");
+            toast.error("An error occurred");
         } finally {
             setSaving(false);
         }
@@ -95,14 +103,15 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
             });
 
             if (res.ok) {
+                toast.success("Member deleted successfully");
                 router.push("/members");
                 router.refresh();
             } else {
-                alert("Failed to delete member");
+                toast.error("Failed to delete member");
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred");
+            toast.error("An error occurred");
         }
     };
 
@@ -119,24 +128,28 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                     >
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
-                    <h2 className="text-3xl font-bold tracking-tight">Edit Member</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">
+                        {isReadOnly ? "Member Details" : "Edit Member"}
+                    </h2>
                 </div>
-                <button
-                    onClick={handleDelete}
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-destructive/10 hover:text-destructive h-9 px-4 py-2"
-                >
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </button>
+                {!isReadOnly && (
+                    <button
+                        onClick={handleDelete}
+                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-destructive/10 hover:text-destructive h-9 px-4 py-2"
+                    >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </button>
+                )}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Same form fields as NewMemberPage, but populated */}
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">First Name</label>
                         <input
                             name="firstName"
                             required
+                            disabled={isReadOnly}
                             value={member.firstName}
                             onChange={handleChange}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -147,6 +160,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                         <input
                             name="lastName"
                             required
+                            disabled={isReadOnly}
                             value={member.lastName}
                             onChange={handleChange}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -161,6 +175,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="gender"
                             value={member.gender}
                             onChange={handleChange}
+                            disabled={isReadOnly}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <option value="Male">Male</option>
@@ -173,6 +188,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="dob"
                             placeholder="DD/MM"
                             required
+                            disabled={isReadOnly}
                             value={member.dob}
                             onChange={handleChange}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -187,6 +203,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                         onChange={(e) => handlePhoneChange(0, e.target.value)}
                         placeholder="08012345678"
                         required
+                        disabled={isReadOnly}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     />
                 </div>
@@ -196,6 +213,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                     <textarea
                         name="address"
                         required
+                        disabled={isReadOnly}
                         value={member.address}
                         onChange={handleChange}
                         className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -209,6 +227,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="status"
                             value={member.status}
                             onChange={handleChange}
+                            disabled={isReadOnly}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <option value="Visitor">Visitor</option>
@@ -222,6 +241,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="ministry"
                             value={member.ministry || ""}
                             onChange={handleChange}
+                            disabled={isReadOnly}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                     </div>
@@ -234,6 +254,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="occupation"
                             value={member.occupation || ""}
                             onChange={handleChange}
+                            disabled={isReadOnly}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                     </div>
@@ -243,6 +264,7 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                             name="emergencyContact"
                             value={member.emergencyContact || ""}
                             onChange={handleChange}
+                            disabled={isReadOnly}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                     </div>
@@ -254,25 +276,28 @@ export default function MemberDetailsPage({ params }: { params: Promise<{ id: st
                         name="notes"
                         value={member.notes || ""}
                         onChange={handleChange}
+                        disabled={isReadOnly}
                         className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     />
                 </div>
 
-                <div className="flex justify-end gap-4">
-                    <Link
-                        href="/members"
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-                    >
-                        Cancel
-                    </Link>
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-                    >
-                        {saving ? "Saving..." : "Update Member"}
-                    </button>
-                </div>
+                {!isReadOnly && (
+                    <div className="flex justify-end gap-4">
+                        <Link
+                            href="/members"
+                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                        >
+                            Cancel
+                        </Link>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                        >
+                            {saving ? "Saving..." : "Update Member"}
+                        </button>
+                    </div>
+                )}
             </form>
         </div>
     );

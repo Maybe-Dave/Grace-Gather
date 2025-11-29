@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Member {
     _id: string;
@@ -25,9 +26,10 @@ export default function MarkAttendancePage() {
             try {
                 const res = await fetch("/api/members");
                 const data = await res.json();
-                setMembers(data);
+                setMembers(data.members || []);
             } catch (error) {
                 console.error("Failed to fetch members", error);
+                toast.error("Failed to fetch members");
             } finally {
                 setLoading(false);
             }
@@ -61,14 +63,15 @@ export default function MarkAttendancePage() {
             });
 
             if (res.ok) {
+                toast.success("Attendance marked successfully");
                 router.push("/attendance");
                 router.refresh();
             } else {
-                alert("Failed to mark attendance");
+                toast.error("Failed to mark attendance");
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred");
+            toast.error("An error occurred");
         } finally {
             setSubmitting(false);
         }
@@ -129,8 +132,8 @@ export default function MarkAttendancePage() {
                                     key={member._id}
                                     onClick={() => toggleMember(member._id)}
                                     className={`cursor-pointer rounded-lg border p-4 flex items-center justify-between transition-colors ${selectedMembers.has(member._id)
-                                            ? "bg-primary/10 border-primary"
-                                            : "hover:bg-muted"
+                                        ? "bg-primary/10 border-primary"
+                                        : "hover:bg-muted"
                                         }`}
                                 >
                                     <span className="font-medium">

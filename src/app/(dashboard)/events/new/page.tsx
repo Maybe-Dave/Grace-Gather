@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function NewEventPage() {
     const router = useRouter();
@@ -32,14 +33,15 @@ export default function NewEventPage() {
             });
 
             if (res.ok) {
+                toast.success("Event created successfully");
                 router.push("/events");
                 router.refresh();
             } else {
-                alert("Failed to create event");
+                toast.error("Failed to create event");
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred");
+            toast.error("An error occurred");
         } finally {
             setLoading(false);
         }
