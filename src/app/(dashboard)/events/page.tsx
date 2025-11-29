@@ -59,7 +59,7 @@ export default function EventsPage() {
                     events.map((event) => (
                         <div
                             key={event._id}
-                            className="rounded-xl border bg-card text-card-foreground shadow-sm"
+                            className="rounded-xl bg-card text-card-foreground shadow-md"
                         >
                             <div className="p-6 flex flex-col space-y-1.5">
                                 <div className="flex items-center justify-between">

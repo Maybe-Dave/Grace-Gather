@@ -2,6 +2,8 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IUser extends Document {
     name: string;
+    firstName?: string;
+    lastName?: string;
     email: string;
     password?: string;
     role: "Super Admin" | "Attendance Manager" | "Member Manager" | "Viewer";
@@ -12,6 +14,8 @@ export interface IUser extends Document {
 const UserSchema: Schema = new Schema(
     {
         name: { type: String, required: true },
+        firstName: { type: String },
+        lastName: { type: String },
         email: { type: String, required: true, unique: true },
         password: { type: String, select: false }, // Password optional for OAuth, but required for Credentials
         role: {

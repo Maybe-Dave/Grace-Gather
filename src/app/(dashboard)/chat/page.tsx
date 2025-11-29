@@ -17,6 +17,7 @@ export default function ChatPage() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -25,6 +26,12 @@ export default function ChatPage() {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    useEffect(() => {
+        if (!loading) {
+            inputRef.current?.focus();
+        }
+    }, [loading]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,6 +48,7 @@ export default function ChatPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     message: userMessage,
+                    history: messages, // Send previous messages for context
                     role: session?.user?.role || "Viewer",
                 }),
             });
@@ -71,16 +79,16 @@ export default function ChatPage() {
                     >
                         <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
                                 }`}
                         >
                             {msg.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                         </div>
                         <div
                             className={`rounded-lg px-4 py-2 max-w-[80%] ${msg.role === "user"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted"
                                 }`}
                         >
                             <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -106,6 +114,7 @@ export default function ChatPage() {
 
             <form onSubmit={handleSubmit} className="flex gap-2">
                 <input
+                    ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask about members, attendance, or events..."

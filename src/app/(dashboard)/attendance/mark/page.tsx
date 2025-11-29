@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ConfirmationModal } from "@/components/confirmation-modal";
 
 interface Member {
     _id: string;
@@ -21,12 +22,19 @@ export default function MarkAttendancePage() {
     const [serviceType, setServiceType] = useState("Sunday Service");
     const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
 
+    // Search state
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // Modal state
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+
     useEffect(() => {
         async function fetchMembers() {
             try {
                 const res = await fetch("/api/members");
                 const data = await res.json();
-                setMembers(data.members || []);
+                // Fix: API returns array directly
+                setMembers(Array.isArray(data) ? data : []);
             } catch (error) {
                 console.error("Failed to fetch members", error);
                 toast.error("Failed to fetch members");
@@ -47,8 +55,26 @@ export default function MarkAttendancePage() {
         setSelectedMembers(newSelected);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleInitialSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (serviceType === "Sunday Service") {
+            const selectedDate = new Date(date);
+            // getDay() returns 0 for Sunday
+            if (selectedDate.getDay() !== 0) {
+                toast.error("Sunday Service must be on a Sunday");
+                return;
+            }
+        }
+
+        if (selectedMembers.size === 0) {
+            toast.error("Please select at least one attendee");
+            return;
+        }
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmSubmit = async () => {
         setSubmitting(true);
 
         try {
@@ -74,8 +100,19 @@ export default function MarkAttendancePage() {
             toast.error("An error occurred");
         } finally {
             setSubmitting(false);
+            setShowConfirmModal(false);
         }
     };
+
+    // Filter members based on search
+    const filteredMembers = members.filter(member =>
+        `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Get selected member names for modal
+    const selectedMemberNames = members
+        .filter(m => selectedMembers.has(m._id))
+        .map(m => `${m.firstName} ${m.lastName}`);
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -89,7 +126,7 @@ export default function MarkAttendancePage() {
                 <h2 className="text-3xl font-bold tracking-tight">Mark Attendance</h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleInitialSubmit} className="space-y-8">
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Date</label>
@@ -116,18 +153,32 @@ export default function MarkAttendancePage() {
                 </div>
 
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium">Select Attendees</h3>
-                        <span className="text-sm text-muted-foreground">
-                            {selectedMembers.size} selected
-                        </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-lg font-medium">Select Attendees</h3>
+                            <span className="text-sm text-muted-foreground">
+                                {selectedMembers.size} selected
+                            </span>
+                        </div>
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Search members..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pl-8 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                        </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[500px] overflow-y-auto p-1">
                         {loading ? (
-                            <div>Loading members...</div>
+                            <div className="col-span-full text-center py-8 text-muted-foreground">Loading members...</div>
+                        ) : filteredMembers.length === 0 ? (
+                            <div className="col-span-full text-center py-8 text-muted-foreground">No members found.</div>
                         ) : (
-                            members.map((member) => (
+                            filteredMembers.map((member) => (
                                 <div
                                     key={member._id}
                                     onClick={() => toggleMember(member._id)}
@@ -157,13 +208,35 @@ export default function MarkAttendancePage() {
                     </Link>
                     <button
                         type="submit"
-                        disabled={submitting}
                         className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
                     >
-                        {submitting ? "Saving..." : "Save Attendance"}
+                        Review & Save
                     </button>
                 </div>
             </form>
+
+            <ConfirmationModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={handleConfirmSubmit}
+                title="Confirm Attendance"
+                loading={submitting}
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        You are about to mark attendance for <strong>{selectedMembers.size}</strong> people on <strong>{new Date(date).toLocaleDateString()}</strong>.
+                    </p>
+                    <div className="rounded-md border p-2 bg-muted/50 max-h-[200px] overflow-y-auto">
+                        <ul className="text-sm space-y-1">
+                            {selectedMemberNames.map((name, i) => (
+                                <li key={i} className="flex items-center gap-2">
+                                    <Check className="h-3 w-3 text-green-500" /> {name}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </ConfirmationModal>
         </div>
     );
 }

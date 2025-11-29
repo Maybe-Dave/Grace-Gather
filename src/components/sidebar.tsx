@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
+import { signOut } from "next-auth/react"
 import {
     LayoutDashboard,
     Users,
@@ -85,15 +86,15 @@ export function Sidebar() {
                 </div>
             </div>
             <div className="px-3 py-2">
-                <Link
-                    href="/login"
+                <div
+                    onClick={() => signOut({ callbackUrl: "/" })}
                     className="text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-destructive hover:bg-destructive/10 rounded-lg transition text-muted-foreground"
                 >
                     <div className="flex items-center flex-1">
                         <LogOut className="h-5 w-5 mr-3 text-destructive" />
                         Sign Out
                     </div>
-                </Link>
+                </div>
             </div>
         </div>
     )

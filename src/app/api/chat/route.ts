@@ -9,7 +9,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 export async function POST(request: Request) {
     try {
-        const { message, role } = await request.json();
+        const { message, history, role } = await request.json();
 
         if (!process.env.GOOGLE_API_KEY) {
             return NextResponse.json(
@@ -31,25 +31,45 @@ export async function POST(request: Request) {
         // Manager/Admin Context
         if (role === "Attendance Manager" || role === "Super Admin") {
             const recentAttendance = await Attendance.find().sort({ date: -1 }).limit(1).populate("attendees", "firstName lastName");
-            contextData += `Recent Attendance: ${recentAttendance.length > 0 ? recentAttendance[0].attendees.length : 0} attendees. `;
+
+            if (recentAttendance.length > 0) {
+                const attendeesList = recentAttendance[0].attendees.map((a: any) => `${a.firstName} ${a.lastName}`).join(", ");
+                contextData += `Recent Attendance (${new Date(recentAttendance[0].date).toLocaleDateString()}): ${recentAttendance[0].attendees.length} attendees. Attendees List: ${attendeesList}. `;
+            } else {
+                contextData += `Recent Attendance: 0 attendees. `;
+            }
         }
 
         if (role === "Member Manager" || role === "Super Admin") {
-            // Potentially add more detailed member info if requested, but keep it safe for now
-            // For this demo, we won't dump the whole DB into the context
+            const members = await Member.find({}, "firstName lastName phoneNumbers address status");
+            const memberList = members.map(m =>
+                `${m.firstName} ${m.lastName} (Status: ${m.status}, Phone: ${m.phoneNumbers.join(", ")}, Address: ${m.address})`
+            ).join("; ");
+            contextData += `Member Directory: ${memberList}. `;
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+        // Format history for the prompt
+        const historyText = history ? history.map((msg: any) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`).join("\n") : "";
 
         const prompt = `
       You are a helpful assistant for the GraceGather Church Management System.
       User Role: ${role}
-      Context Data: ${contextData}
+      
+      Context Data:
+      ${contextData}
+      
+      Conversation History:
+      ${historyText}
       
       User Question: ${message}
       
-      Answer the question based on the context provided. If the user asks for information not in the context or restricted for their role, politely decline.
-      Keep answers concise and friendly.
+      Instructions:
+      1. Answer the question based on the context provided and the conversation history.
+      2. If the user is a "Super Admin" or "Member Manager", you ARE AUTHORIZED to provide personal contact information (phone numbers, addresses) from the Member Directory.
+      3. If the user is NOT authorized, politely decline to provide personal information.
+      4. Keep answers concise and friendly.
     `;
 
         const result = await model.generateContent(prompt);
@@ -57,10 +77,10 @@ export async function POST(request: Request) {
         const text = response.text();
 
         return NextResponse.json({ response: text });
-    } catch (error) {
-        console.error(error);
+    } catch (error: any) {
+        console.error("Chatbot Error:", error);
         return NextResponse.json(
-            { error: "Failed to generate response" },
+            { error: error.message || "Failed to generate response" },
             { status: 500 }
         );
     }
