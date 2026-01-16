@@ -13,32 +13,46 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
+                console.log("Authorize called with email:", credentials?.email);
                 if (!credentials?.email || !credentials?.password) {
+                    console.log("Missing credentials");
                     return null;
                 }
 
-                await dbConnect();
+                try {
+                    console.log("Connecting to DB...");
+                    await dbConnect();
+                    console.log("DB Connected");
 
-                const user = await User.findOne({ email: credentials.email }).select("+password");
+                    console.log("Finding user...");
+                    const user = await User.findOne({ email: credentials.email }).select("+password");
+                    console.log("User found:", user ? "Yes" : "No");
 
-                if (!user || !user.password) {
+                    if (!user || !user.password) {
+                        console.log("User not found or no password");
+                        return null;
+                    }
+
+                    console.log("Comparing password...");
+                    const isValid = await bcrypt.compare(credentials.password, user.password);
+                    console.log("Password valid:", isValid);
+
+                    if (!isValid) {
+                        return null;
+                    }
+
+                    return {
+                        id: user._id.toString(),
+                        name: user.name,
+                        email: user.email,
+                        role: user.role,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                    };
+                } catch (error) {
+                    console.error("Auth error:", error);
                     return null;
                 }
-
-                const isValid = await bcrypt.compare(credentials.password, user.password);
-
-                if (!isValid) {
-                    return null;
-                }
-
-                return {
-                    id: user._id.toString(),
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                };
             },
         }),
     ],
